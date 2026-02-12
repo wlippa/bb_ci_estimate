@@ -30,6 +30,11 @@ echo "1000 Genomes Loci Prefix: ${G1000_LOCI_PREFIX}"
 echo "1000 Genomes Alleles Prefix: ${G1000_ALLELES_PREFIX}"
 
 
+# GC Content and Replication Timing files
+# Standard Battenberg reference files
+GCCORRECT_PREFIX="$BEAGLE_BASEDIR/1000G_loci_hg38/1000_genomes_GC_corr_chr_"
+REPLICCORRECT_PREFIX="$BEAGLE_BASEDIR/1000G_loci_hg38/1000_genomes_replication_timing_chr_"
+
 Rscript extract_snp_baf_logr.R \
     --tumour_bam "${TUMOUR_BAM}" \
     --normal_bam "${NORMAL_BAM}" \
@@ -38,6 +43,8 @@ Rscript extract_snp_baf_logr.R \
     --output_dir "${OUTPUT_DIR}" \
     --g1000_loci_prefix "${G1000_LOCI_PREFIX}" \
     --g1000_alleles_prefix "${G1000_ALLELES_PREFIX}" \
+    --gccorrect_prefix "${GCCORRECT_PREFIX}" \
+    --repliccorrect_prefix "${REPLICCORRECT_PREFIX}" \
     --allelecounter "${ALLELECOUNTER}" \
     --chromosomes "21" \
     --nthreads 4
