@@ -98,7 +98,7 @@ read_table_generic <- function(file, header = TRUE, sep = "\t", chrom_col = 1, s
   if (!requireNamespace("readr", quietly = TRUE)) {
     # Fallback to base R
     d <- read.table(file, header = header, sep = sep, stringsAsFactors = FALSE,
-                    skip = skip, comment.char = "#")
+                    skip = skip, comment.char = "")
     d[, chrom_col] <- as.character(d[, chrom_col])
     return(d)
   }
@@ -244,7 +244,6 @@ calculateBAFandLogR <- function(tumourAlleleCountsFile.prefix,
     mutCount2 <- mutCount2[indices]
     cat("  SNPs after filtering:", length(indices), "\n")
   }
-  
   n <- length(indices)
   
   # Allocate vectors
@@ -288,13 +287,13 @@ calculateBAFandLogR <- function(tumourAlleleCountsFile.prefix,
 # ==============================================================================
 # Main execution
 # ==============================================================================
-
 # Step 1: Run allele counting (if not skipped)
+browser()
 if (!opt$skip_allele_counting) {
   cat("Step 1: Running allele counting...\n")
-  
   if (opt$nthreads > 1 && requireNamespace("parallel", quietly = TRUE)) {
     cl <- parallel::makeCluster(opt$nthreads)
+    parallel::clusterExport(cl, varlist = c("getAlleleCounts", "opt"), envir = environment())
     parallel::parLapply(cl, chr_names, function(chrom) {
       # Tumour
       getAlleleCounts(

@@ -3,6 +3,10 @@
 # subsample_bam.sh
 # Subsample a BAM file by chromosome and optional coordinate range.
 # Usage: ./subsample_bam.sh -i <input.bam> -o <output.bam> -c <chromosome> [-s <start>] [-e <end>]
+# bash /nemo/project/proj-tracerx-lung/tctProjects/CN-CCF/ALPACA-WGS/repos/bb_ci_estimate/inst/example/subsample_bam.sh -i /nemo/project/proj-tracerx-wgs/working/release/ALIGNMENT/LTX1231_SU_T1-R1--8c625f964d/LTX1231_SU_T1-R1--8c625f964d.bqsr.bam -o /nemo/project/proj-tracerx-lung/tctProjects/CN-CCF/ALPACA-WGS/data/bams/test.bqsr.bam -c chr21 -s 20000000 -e 21000000
+# bash /nemo/project/proj-tracerx-lung/tctProjects/CN-CCF/ALPACA-WGS/repos/bb_ci_estimate/inst/example/subsample_bam.sh -i /nemo/project/proj-tracerx-wgs/working/release/ALIGNMENT/LTX1231_BS_GL--59c4c25703/LTX1231_BS_GL--59c4c25703.bqsr.bam -o /nemo/project/proj-tracerx-lung/tctProjects/CN-CCF/ALPACA-WGS/data/bams/normal.bqsr.bam -c chr21 -s 20000000 -e 21000000
+
+
 
 usage() {
     echo "Usage: $0 -i <input.bam> -o <output.bam> -c <chromosome> [-s <start>] [-e <end>]"
