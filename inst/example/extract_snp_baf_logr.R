@@ -210,33 +210,37 @@ gc_correct <- function(snp_data, gc_content_file_prefix, replic_timing_file_pref
   }
   
   # Match loci
-  # Note: Battenberg's gc.correct.wgs filters Tumor_LogR to match GC_data. 
-  # Here we want to keep all SNPs, but we can only correct those that overlap.
-  # However, typically GC data covers the whole genome or at least the 1000G loci.
-  
+  # Battenberg STRATEGY: Filter to keep ONLY SNPs that have matching GC data
   cat("  Matching loci...\n")
   # Use keys for matching
-  key_logr <- paste(Tumor_LogR$Chromosome, Tumor_LogR$Position, sep = "_")
+  key_logr <- paste(snp_data$Chromosome, snp_data$Position, sep = "_")
   key_gc <- paste(GC_data$chr, GC_data$Position, sep = "_")
   
   common_keys <- intersect(key_logr, key_gc)
-  cat("  Overlapping loci:", length(common_keys), "of", nrow(Tumor_LogR), "\n")
+  cat("  Overlapping loci:", length(common_keys), "of", nrow(snp_data), "\n")
   
   if (length(common_keys) < 100) {
     warning("Too few overlapping loci for GC correction. Skipping.")
     return(snp_data)
   }
   
-  # Subset to common loci for model fitting
-  idx_logr <- match(common_keys, key_logr)
-  idx_gc <- match(common_keys, key_gc)
+  # Filter snp_data to common keys immediately (Battenberg behavior)
+  snp_data <- snp_data[key_logr %in% common_keys, ]
   
-  sub_logr <- Tumor_LogR[idx_logr, ]
+  # Re-extract LogR for the subset
+  # Note: we need to ensure order matches for correlation data construction
+  # We will sort both by the key to ensure alignment, or use match()
+  
+  # Let's use match to align GC data to the filtered snp_data
+  key_logr_subset <- paste(snp_data$Chromosome, snp_data$Position, sep = "_")
+  idx_gc <- match(key_logr_subset, key_gc)
+  
+  # Subset GC data to match snp_data order
   sub_gc <- GC_data[idx_gc, ]
   
   if (!is.null(replic_data)) {
     key_rep <- paste(replic_data$chr, replic_data$Position, sep = "_")
-    idx_rep <- match(common_keys, key_rep)
+    idx_rep <- match(key_logr_subset, key_rep)
     
     # Check match rate
     match_rate <- mean(!is.na(idx_rep))
@@ -246,22 +250,24 @@ gc_correct <- function(snp_data, gc_content_file_prefix, replic_timing_file_pref
        cat("Warning: Low matching between Loci and Replication data. Check chromosome naming convention (e.g., 'chr1' vs '1').\n")
     }
 
-    # Ensure no NAs in replication data if we are using it
-    # We only keep loci that have replication data available
+    # Battenberg filter: if using replication data, also filter to only those that have it
     valid_rep <- !is.na(idx_rep)
     
-    # Filter everything to valid_rep
-    sub_logr <- sub_logr[valid_rep, ]
+    # Filter snp_data and sub_gc further
+    snp_data <- snp_data[valid_rep, ]
     sub_gc <- sub_gc[valid_rep, ]
     
-    # valid_rep is boolean vector for common_keys. 
-    # idx_rep[valid_rep] gives the indices in replic_data that matched
+    # Update our subset key for final alignment if needed (though we just filtered)
+    # Get the corresponding replication rows
     sub_rep <- replic_data[idx_rep[valid_rep], ]
   }
   
+  # Update local LogR vector for model fitting
+  Tumour_LogR_vec <- snp_data$Tumour_LogR
+  
   # Calculate correlations
   # Use [[ ]] to extract vectors from tibbles
-  corr <- abs(cor(as.data.frame(sub_gc)[, 3:ncol(sub_gc)], sub_logr[,3], use="complete.obs")[,1])
+  corr <- abs(cor(as.data.frame(sub_gc)[, 3:ncol(sub_gc)], Tumour_LogR_vec, use="complete.obs")[,1])
   
   index_1kb <- which(names(corr)=="1kb")
   maxGCcol_insert <- names(which.max(corr[1:index_1kb]))
@@ -273,7 +279,7 @@ gc_correct <- function(snp_data, gc_content_file_prefix, replic_timing_file_pref
   
   # Construct data frame for linear model
   # IMPORTANT: Use [[ ]] to extract vectors, as sub_gc might be a tibble
-  corrdata <- data.frame(logr = sub_logr[,3],
+  corrdata <- data.frame(logr = Tumour_LogR_vec,
                          GC_insert = sub_gc[[maxGCcol_insert]],
                          GC_amplic = sub_gc[[maxGCcol_amplic]])
   
@@ -292,7 +298,7 @@ gc_correct <- function(snp_data, gc_content_file_prefix, replic_timing_file_pref
         rep_mat <- sub_rep[, rep_cols]
     }
 
-    corr_rep <- abs(cor(rep_mat, sub_logr[,3], use="complete.obs")[,1])
+    corr_rep <- abs(cor(rep_mat, Tumour_LogR_vec, use="complete.obs")[,1])
     maxreplic <- names(which.max(corr_rep))
     cat("  Max Replication correlation:", maxreplic, "-", format(max(corr_rep), digits=3), "\n")
     
@@ -317,20 +323,9 @@ gc_correct <- function(snp_data, gc_content_file_prefix, replic_timing_file_pref
   
   residuals <- residuals(model)
   
-  # Update the LogR values in the main object
-  # Only for the ones we used in the model
-  
-  # Corrected LogR = Residuals
-  # Map back to original indices
-  snp_data$Tumour_LogR[idx_logr] <- residuals
-  
-  # Mark non-corrected as NA or keep raw? Battenberg typically outputs NA if not corrected or filtered.
-  # But here we might have filtered down to common keys. existing code likely wants values.
-  # Let's keep raw values for those we couldn't correct (if any), but warn.
-  
-  if (nrow(snp_data) > length(idx_logr)) {
-    cat("  Warning:", nrow(snp_data) - length(idx_logr), "SNPs could not be GC corrected (missing in reference files). Keeping raw LogR for these.\n")
-  }
+  # Update the LogR values in the snp_data
+  # Since we filtered snp_data to match the model input exactly, we can direct assign
+  snp_data$Tumour_LogR <- residuals
   
   return(snp_data)
 }
