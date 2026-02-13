@@ -138,9 +138,14 @@ read_gccontent <- function(filename) {
 read_replication <- function(filename) {
   if (!requireNamespace("readr", quietly = TRUE)) {
     d <- read.table(filename, header = TRUE, stringsAsFactors = FALSE)
-    return(d)
+  } else {
+    d <- readr::read_tsv(file=filename, col_types = paste0("ci", paste0(rep("n", 15), collapse = "")))
   }
-  return(readr::read_tsv(file=filename, col_types = paste0("ci", paste0(rep("n", 15), collapse = ""))))
+  # Ensure standard column names for the first two columns
+  if (ncol(d) >= 2) {
+    colnames(d)[1:2] <- c("chr", "Position")
+  }
+  return(as.data.frame(d))
 }
 
 #' Function to correct LogR for waviness that correlates with GC content
@@ -232,12 +237,26 @@ gc_correct <- function(snp_data, gc_content_file_prefix, replic_timing_file_pref
   if (!is.null(replic_data)) {
     key_rep <- paste(replic_data$chr, replic_data$Position, sep = "_")
     idx_rep <- match(common_keys, key_rep)
-    sub_rep <- replic_data[idx_rep, ]
+    
+    # Check match rate
+    match_rate <- mean(!is.na(idx_rep))
+    cat("  Replication data match rate:", round(match_rate * 100, 2), "%\n")
+    
+    if (match_rate < 0.1) {
+       cat("Warning: Low matching between Loci and Replication data. Check chromosome naming convention (e.g., 'chr1' vs '1').\n")
+    }
+
     # Ensure no NAs in replication data if we are using it
+    # We only keep loci that have replication data available
     valid_rep <- !is.na(idx_rep)
+    
+    # Filter everything to valid_rep
     sub_logr <- sub_logr[valid_rep, ]
     sub_gc <- sub_gc[valid_rep, ]
-    sub_rep <- sub_rep[valid_rep[valid_rep], ]
+    
+    # valid_rep is boolean vector for common_keys. 
+    # idx_rep[valid_rep] gives the indices in replic_data that matched
+    sub_rep <- replic_data[idx_rep[valid_rep], ]
   }
   
   # Calculate correlations
