@@ -260,7 +260,8 @@ gc_correct <- function(snp_data, gc_content_file_prefix, replic_timing_file_pref
   }
   
   # Calculate correlations
-  corr <- abs(cor(sub_gc[, 3:ncol(sub_gc)], sub_logr[,3], use="complete.obs")[,1])
+  # Use [[ ]] to extract vectors from tibbles
+  corr <- abs(cor(as.data.frame(sub_gc)[, 3:ncol(sub_gc)], sub_logr[,3], use="complete.obs")[,1])
   
   index_1kb <- which(names(corr)=="1kb")
   maxGCcol_insert <- names(which.max(corr[1:index_1kb]))
@@ -270,20 +271,37 @@ gc_correct <- function(snp_data, gc_content_file_prefix, replic_timing_file_pref
   cat("  Max GC correlation (short):", maxGCcol_insert, "-", format(max(corr[1:index_1kb]), digits=3), "\n")
   cat("  Max GC correlation (long):", maxGCcol_amplic, "-", format(max(corr[(index_1kb+2):index_100kb]), digits=3), "\n")
   
+  # Construct data frame for linear model
+  # IMPORTANT: Use [[ ]] to extract vectors, as sub_gc might be a tibble
   corrdata <- data.frame(logr = sub_logr[,3],
-                         GC_insert = sub_gc[,maxGCcol_insert],
-                         GC_amplic = sub_gc[,maxGCcol_amplic])
+                         GC_insert = sub_gc[[maxGCcol_insert]],
+                         GC_amplic = sub_gc[[maxGCcol_amplic]])
   
-  model_formula <- logr ~ ns(x = GC_insert, df = 5, intercept = T) + ns(x = GC_amplic, df = 5, intercept = T)
+  # Explicitly set column names to avoid issues with data.frame naming
+  colnames(corrdata)[1:3] <- c("logr", "GC_insert", "GC_amplic")
+  
+  model_formula <- logr ~ splines::ns(x = GC_insert, df = 5, intercept = T) + splines::ns(x = GC_amplic, df = 5, intercept = T)
   
   if (!is.null(replic_data)) {
-    corr_rep <- abs(cor(sub_rep[, 3:ncol(sub_rep)], sub_logr[,3], use="complete.obs")[,1])
+    # Check if sub_rep is tibble or data.frame
+    # Extract numeric columns for correlation
+    rep_cols <- 3:ncol(sub_rep)
+    if (inherits(sub_rep, "tbl_df")) {
+        rep_mat <- as.matrix(sub_rep[, rep_cols])
+    } else {
+        rep_mat <- sub_rep[, rep_cols]
+    }
+
+    corr_rep <- abs(cor(rep_mat, sub_logr[,3], use="complete.obs")[,1])
     maxreplic <- names(which.max(corr_rep))
     cat("  Max Replication correlation:", maxreplic, "-", format(max(corr_rep), digits=3), "\n")
     
-    corrdata$replic <- sub_rep[, maxreplic]
-    model_formula <- logr ~ ns(x = GC_insert, df = 5, intercept = T) + ns(x = GC_amplic, df = 5, intercept = T) + ns(x = replic, df = 5, intercept = T)
+    corrdata$replic <- sub_rep[[maxreplic]]
+    model_formula <- logr ~ splines::ns(x = GC_insert, df = 5, intercept = T) + splines::ns(x = GC_amplic, df = 5, intercept = T) + splines::ns(x = replic, df = 5, intercept = T)
   }
+  
+  # Debug: Check column names
+  cat("  Model data columns:", paste(colnames(corrdata), collapse=", "), "\n")
   
   # Fit model
   cat("  Fitting regression model...\n")
